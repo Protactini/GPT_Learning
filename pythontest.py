@@ -29,6 +29,7 @@ with open('input.txt', 'r', encoding='utf-8') as f:
 
 # Using tiktoken to encode test and splite into train and test 
 data = torch.tensor(enc.encode(text), dtype=torch.long)
+vocab_size = max(data); # Get size for the ml network
 n = int(0.9*len(data)) # first 90% will be train, rest val
 train_data = data[:n]
 val_data = data[n:]
@@ -44,3 +45,47 @@ def get_batch(split):
     return x, y
 
 @torch.no_grad()
+
+# Adding the most out layer of the NN
+class BigramLanguageModel(nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        # each token should directly reads off the logits for the next token from a lookup table
+        self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
+        self.position_embedding_table = nn.Embedding(block_size, n_embd)
+        
+        #### here should be a block of nural network which is the main part of this code####
+        
+        self.ln_f = nn.LayerNorm(n_embd) # final layer norm
+        self.lm_head = nn.Linear(n_embd, vocab_size)
+
+    #Where the data will be trained
+    def forward(self, idx, targets=None):
+        B, T = idx.shape
+
+        # idx and targets are both (B,T) tensor of integers
+        tok_emb = self.token_embedding_table(idx) # (B,T,C)
+        pos_emb = self.position_embedding_table(torch.arange(T, device=device)) # (T,C)
+        x = tok_emb + pos_emb # (B,T,C)
+        x = self.blocks(x) # (B,T,C)
+        x = self.ln_f(x) # (B,T,C)
+        logits = self.lm_head(x) # (B,T,vocab_size)
+
+        if targets is None:
+            loss = None
+        else:
+            B, T, C = logits.shape
+            logits = logits.view(B*T, C)
+            targets = targets.view(B*T)
+            loss = F.cross_entropy(logits, targets)
+
+        return logits, loss
+
+    # Generate result of this nn
+    def generate(self, idx, max_new_tokens):
+        # 
+
+
+model = BigramLanguageModel()
+m = model.to(device)
